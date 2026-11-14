@@ -4,15 +4,12 @@ const { default: makeWASocket, useMultiFileAuthState, makeCacheableSignalKeyStor
 const P = require('pino')
 const fs = require('fs')
 
-// سيرفر وهمي عشان Render يفضل Live
+// Web Server عشان Render يفضل Live
 const app = express()
 app.get('/', (req,res)=> res.send('SPARTA V7 LIVE 👑 - BOT IS RUNNING'))
-app.listen(process.env.PORT || 3000)
+app.listen(process.env.PORT || 3000, ()=> console.log('Web Live'))
 
-const BOT_TOKEN = process.env.BOT_TOKEN
-const bot = new Telegraf(BOT_TOKEN)
-let waSock = null
-
+const bot = new Telegraf(process.env.BOT_TOKEN)
 const CHANNEL_LINK = "https://whatsapp.com/channel/0029VbDwdAaG3R3j1bt1903S"
 const DEV_LINK = "https://t.me/DAMA_4"
 
@@ -23,19 +20,20 @@ const mainMenu = Markup.inlineKeyboard([
   [Markup.button.callback('المطور 👑', 'dev'), Markup.button.callback('القناة 📢', 'channel')]
 ])
 
-async function startWA(phone, ctx){
+async function getCode(phone, ctx){
+  if(fs.existsSync('./auth_sparta')) fs.rmSync('./auth_sparta',{recursive:true,force:true})
   const { state, saveCreds } = await useMultiFileAuthState('./auth_sparta')
-  waSock = makeWASocket({
+  const sock = makeWASocket({
     auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, P({level:'silent'})) },
     logger: P({level:'silent'}),
     browser: ["Ubuntu","Chrome","20.0.04"],
-    printQRInTerminal: false
+    printQRInTerminal: false,
+    syncFullHistory: false
   })
-  waSock.ev.on('creds.update', saveCreds)
-  waSock.ev.on('connection.update', (u)=>{
+  sock.ev.on('creds.update', saveCreds)
+  sock.ev.on('connection.update', (u)=>{
     if(u.connection === 'open'){
-      ctx.replyWithMarkdown(`
-✦ *بوابة SPARTA للواتساب* 🐍 ✦
+      ctx.replyWithMarkdown(`✦ *بوابة SPARTA للواتساب* 🐍 ✦
 ━━━━━━━━━━━━━━━━
 
 ✅ *تم الاتصال بنجاح*
@@ -58,9 +56,8 @@ ${phone}
       )
     }
   })
-  await new Promise(r=>setTimeout(r,1500))
-  const custom = "SPAR-TA" + Math.floor(Math.random()*90+10)
-  const code = await waSock.requestPairingCode(phone, custom)
+  await new Promise(r=>setTimeout(r,2500))
+  const code = await sock.requestPairingCode(phone)
   return code
 }
 
@@ -70,32 +67,24 @@ bot.start((ctx)=> ctx.replyWithMarkdown(`
 ╚═══════════════════╝
 `, mainMenu))
 
-// هنا التعديل اللي طلبته زي صورة MEDUSA
-bot.action('connect', async (ctx)=>{
-  await ctx.replyWithMarkdown(`
-📱 *SPARTA CONNECT*
-
-أرسل رقم واتساب بهذا الشكل:
-
-\`201xxxxxxxxx\`
-
-سيتم إنشاء رمز Pairing Code بعد ذلك.
-`)
+bot.action('connect', (ctx)=>{
+  ctx.replyWithMarkdown(`📱 *SPARTA CONNECT*\n\nأرسل رقم واتساب بهذا الشكل:\n\n\`201xxxxxxxxx\`\n\nسيتم إنشاء رمز Pairing Code بعد ذلك.`)
 })
 
 bot.on('text', async (ctx)=>{
-  const phone = ctx.message.text.replace(/[^0-9]/g,'')
-  if(phone.length < 10 || phone.length > 15) return
+  let phone = ctx.message.text.replace(/[^0-9]/g,'')
+  if(phone.length < 10) return
+  if(phone.startsWith('0')) phone = phone.slice(1)
   try{
     await ctx.reply(`⏳ جاري توليد كود لـ ${phone} ...`)
-    const code = await startWA(phone, ctx)
-    const formatted = code.slice(0,4)+'-'+code.slice(4)
-    await ctx.replyWithMarkdown(`📲 كودك: *${formatted}*\n\nاذهب الى واتساب > الاجهزة المرتبطة > ربط برقم الهاتف\n\nLogging in...`, 
-    Markup.inlineKeyboard([[Markup.button.callback(`📋 نسخ الرمز ${formatted}`, `copy`)]]))
-  }catch(e){ ctx.reply('❌ خطأ: '+e.message) }
+    const code = await getCode(phone, ctx)
+    await ctx.replyWithMarkdown(`📲 كودك: *${code}*\n\nاذهب الى واتساب > الاجهزة المرتبطة > ربط برقم الهاتف\n\nLogging in...`)
+  }catch(e){
+    ctx.reply(`❌ خطأ: ${e.message}\n1- امسح جهاز قديم من واتساب\n2- دوس فصل 🗑️\n3- جرب تاني`)
+  }
 })
 
-bot.action('disconnect', async (ctx)=>{
+bot.action('disconnect', (ctx)=>{
   if(fs.existsSync('./auth_sparta')) fs.rmSync('./auth_sparta',{recursive:true,force:true})
   ctx.reply('🗑️ تم فصل SPARTA', mainMenu)
 })
@@ -107,7 +96,7 @@ bot.action('status', (ctx)=>{
 
 bot.action('reconnect', (ctx)=> ctx.reply('♻️ ابعت رقمك تاني للربط'))
 bot.action('settings', (ctx)=> ctx.reply('⚙️ الاعدادات قريبا'))
-bot.action('dev', (ctx)=> ctx.replyWithMarkdown(`👑 المطور:\n${DEV_LINK}`, Markup.inlineKeyboard([[Markup.button.url('المطور 👑', DEV_LINK)]])))
-bot.action('channel', (ctx)=> ctx.replyWithMarkdown(`📢 القناة:\n${CHANNEL_LINK}`, Markup.inlineKeyboard([[Markup.button.url('القناة 📢', CHANNEL_LINK)]])))
+bot.action('dev', (ctx)=> ctx.replyWithMarkdown(`👑 المطور: ${DEV_LINK}`, Markup.inlineKeyboard([[Markup.button.url('المطور 👑', DEV_LINK)]])))
+bot.action('channel', (ctx)=> ctx.replyWithMarkdown(`📢 القناة: ${CHANNEL_LINK}`, Markup.inlineKeyboard([[Markup.button.url('القناة 📢', CHANNEL_LINK)]])))
 
-bot.launch().then(()=> console.log('SPARTA GATEWAY LIVE'))
+bot.launch().then(()=> console.log('SPARTA GATEWAY LIVE - Ubuntu'))
