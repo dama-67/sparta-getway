@@ -3,7 +3,7 @@ const { Telegraf, Markup } = require('telegraf')
 const { default: makeWASocket, useMultiFileAuthState, makeCacheableSignalKeyStore } = require('@whiskeysockets/baileys')
 const P = require('pino')
 const fs = require('fs')
-const qrcode = require('qrcode-terminal')
+const QRCode = require('qrcode')
 
 const app = express()
 app.get('/', (req,res)=> res.send('SPARTA V7 LIVE 👑'))
@@ -29,15 +29,15 @@ async function startQR(ctx){
   })
   sock.ev.on('creds.update', saveCreds)
   sock.ev.on('connection.update', async (u)=>{
-    const { connection, lastDisconnect, qr } = u
+    const { connection, qr } = u
     if(qr){
-      // هيبعتلك QR كـ صورة في التيليجرام
-      const qrImage = await require('qrcode').toDataURL(qr)
-      const base64 = qrImage.split(',')[1]
-      await ctx.replyWithPhoto({source: Buffer.from(base64, 'base64')}, {caption: '📲 امسح الـ QR ده من واتساب\n\nواتساب > الاجهزة المرتبطة > ربط جهاز > امسح الكود\n\nصالح 30 ثانية فقط!'})
+      try{
+        const buffer = await QRCode.toBuffer(qr)
+        await ctx.replyWithPhoto({source: buffer}, {caption: '📲 امسح الـ QR ده من واتساب\n\nواتساب > الاجهزة المرتبطة > ربط جهاز\n\nصالح 30 ثانية!'})
+      }catch(e){ console.log(e) }
     }
     if(connection === 'open'){
-      ctx.reply('✅ تم الاتصال بنجاح SPARTA متصل الآن 🐍')
+      ctx.reply('✅ SPARTA تم الاتصال بنجاح 🐍👑')
     }
   })
 }
@@ -53,4 +53,4 @@ bot.action('status', (ctx)=>{
   ctx.reply(ok ? '🟢 متصل ✅' : '🔴 غير متصل', mainMenu)
 })
 
-bot.launch()
+bot.launch().then(()=> console.log('LIVE'))
