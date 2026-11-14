@@ -1,9 +1,13 @@
 {
-  "name": "sparta-gateway",
+  "name": "sparta-getway",
+  "version": "1.0.0",
   "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
   "dependencies": {
-    "@whiskeysockets/baileys": "6.7.11",
-    "telegraf": "4.16.3",
-    "pino": "8.19.0"
+    "@whiskeysockets/baileys": "^6.7.11",
+    "telegraf": "^4.16.3",
+    "pino": "^8.19.0"
   }
 }
